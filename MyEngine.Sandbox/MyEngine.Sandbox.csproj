@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyEngine.Core\MyEngine.Core.csproj" />
+    <ProjectReference Include="..\MyEngine.Rendering\MyEngine.Rendering.csproj" />
+    <ProjectReference Include="..\MyEngine.ECS\MyEngine.ECS.csproj" />
+    <ProjectReference Include="..\MyEngine.Assets\MyEngine.Assets.csproj" />
+    <ProjectReference Include="..\MyEngine.Scene\MyEngine.Scene.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
