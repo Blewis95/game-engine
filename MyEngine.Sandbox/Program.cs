@@ -1,10 +1,10 @@
 using System.Numerics;
+using MyEngine.Assets;
 using MyEngine.Core;
 using MyEngine.ECS;
 using MyEngine.ECS.Components;
 using MyEngine.ECS.Systems;
 using MyEngine.Rendering;
-using MyEngine.Sandbox;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -41,8 +41,12 @@ gameLoop.Load += () =>
     string fragmentSource = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Shaders", "basic.frag"));
     shader = new Shader(renderer.Gl, vertexSource, fragmentSource);
 
-    cubeMesh = new Mesh(renderer.Gl, CubeGeometry.Vertices, CubeGeometry.Indices);
-    texture = Texture.CreateCheckerboard(renderer.Gl);
+    string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets");
+    var cubeMeshData = ModelLoader.Load(Path.Combine(assetsDir, "cube.gltf"));
+    var checkerImage = TextureLoader.Load(Path.Combine(assetsDir, "checker.png"));
+
+    cubeMesh = new Mesh(renderer.Gl, cubeMeshData.Vertices, cubeMeshData.Indices);
+    texture = new Texture(renderer.Gl, checkerImage.Pixels, checkerImage.Width, checkerImage.Height);
 
     // Five cube entities sharing the same mesh/texture, spread along X.
     // Spin rates vary (and the middle one has no Spin component at all)

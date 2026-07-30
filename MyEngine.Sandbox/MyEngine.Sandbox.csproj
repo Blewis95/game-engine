@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <None Include="Shaders\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
