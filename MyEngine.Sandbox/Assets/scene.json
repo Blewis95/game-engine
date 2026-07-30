@@ -4,13 +4,6 @@
     { "transform": { "position": [-2, 0, 0] }, "render": { "mesh": "cube.gltf", "texture": "checker.png" }, "spin": { "radiansPerSecond": -0.75 } },
     { "transform": { "position": [0, 0, 0] }, "render": { "mesh": "cube.gltf", "texture": "checker.png" } },
     { "transform": { "position": [2, 0, 0] }, "render": { "mesh": "cube.gltf", "texture": "checker.png" }, "spin": { "radiansPerSecond": 0.75 } },
-    { "transform": { "position": [4, 0, 0] }, "render": { "mesh": "cube.gltf", "texture": "checker.png" }, "spin": { "radiansPerSecond": 1.5 } },
-    {
-      "transform": { "position": [0, 0, -3] },
-      "render": { "mesh": "cube.gltf", "texture": "checker.png" },
-      "playerControlled": true,
-      "health": { "current": 100, "max": 100 },
-      "movement": { "speed": 4.0 }
-    }
+    { "transform": { "position": [4, 0, 0] }, "render": { "mesh": "cube.gltf", "texture": "checker.png" }, "spin": { "radiansPerSecond": 1.5 } }
   ]
 }

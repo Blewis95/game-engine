@@ -90,6 +90,12 @@ gameLoop.Load += () =>
                         world.GetComponent<Transform>(entity) = transform;
                 }
                 break;
+
+            case MessageType.EntityDespawn:
+                uint despawnedId = EntityDespawnMessage.Read(reader);
+                if (networkIdToEntity.Remove(despawnedId, out var despawnedEntity))
+                    world.DestroyEntity(despawnedEntity);
+                break;
         }
     };
     networkClient.Connect("127.0.0.1");

@@ -7,6 +7,7 @@ using MyEngine.ECS.Components;
 using MyEngine.ECS.Systems;
 using MyEngine.Networking;
 using MyEngine.Scene;
+using Silk.NET.Maths;
 
 string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets");
 var world = new World();
@@ -17,31 +18,80 @@ SceneLoader.Load(Path.Combine(assetsDir, "scene.json"), world);
 
 Console.WriteLine($"Server started. Loaded {world.All().Count()} entities. Fixed tick rate: 60 Hz.");
 
+// SceneLoader already assigned NetworkIds 0..(count-1); dynamically spawned
+// player entities continue that sequence.
+uint nextNetworkId = (uint)world.All().Count();
+int playerSpawnIndex = 0;
+var peerToEntity = new Dictionary<NetPeer, Entity>();
+
+var networkInputSystem = new NetworkInputSystem();
+
 using var server = new NetworkServer();
+
 server.ClientConnected += peer =>
 {
     Console.WriteLine($"Client connected: {peer.Address}");
 
-    var spawns = world.Query<NetworkId, RenderInfo>()
-        .Select(entity =>
-        {
-            var networkId = world.GetComponent<NetworkId>(entity);
-            var renderInfo = world.GetComponent<RenderInfo>(entity);
-            return (networkId.Value, renderInfo.Mesh, renderInfo.Texture);
-        })
+    var networkId = new NetworkId(nextNetworkId++);
+    var entity = world.CreateEntity();
+    world.AddComponent(entity, networkId);
+    world.AddComponent(entity, new Transform
+    {
+        Position = new Vector3D<float>(playerSpawnIndex * 1.5f, 0f, -3f),
+        Rotation = Quaternion<float>.Identity,
+        Scale = Vector3D<float>.One
+    });
+    world.AddComponent(entity, new RenderInfo { Mesh = "cube.gltf", Texture = "checker.png" });
+    world.AddComponent(entity, new Movement { Speed = 4f, Velocity = Vector3D<float>.Zero });
+    world.AddComponent(entity, new PlayerControlled());
+    world.AddComponent(entity, new Health { Current = 100, Max = 100 });
+    playerSpawnIndex++;
+
+    peerToEntity[peer] = entity;
+
+    // New peer gets a full batch (including the player entity we just made for them).
+    var fullBatch = world.Query<NetworkId, RenderInfo>()
+        .Select(e => (world.GetComponent<NetworkId>(e).Value, world.GetComponent<RenderInfo>(e).Mesh, world.GetComponent<RenderInfo>(e).Texture))
         .ToList();
+    var fullBatchWriter = new NetDataWriter();
+    EntitySpawnMessage.Write(fullBatchWriter, fullBatch);
+    server.Send(peer, fullBatchWriter, DeliveryMethod.ReliableOrdered);
+
+    // Everyone already connected just needs to hear about the new arrival.
+    var newPlayerSpawn = new List<(uint, string, string)> { (networkId.Value, "cube.gltf", "checker.png") };
+    var newPlayerWriter = new NetDataWriter();
+    EntitySpawnMessage.Write(newPlayerWriter, newPlayerSpawn);
+    foreach (var otherPeer in server.ConnectedPeers)
+    {
+        if (otherPeer != peer)
+            server.Send(otherPeer, newPlayerWriter, DeliveryMethod.ReliableOrdered);
+    }
+};
+
+server.ClientDisconnected += peer =>
+{
+    Console.WriteLine($"Client disconnected: {peer.Address}");
+
+    if (!peerToEntity.Remove(peer, out var entity))
+        return;
+
+    uint networkId = world.GetComponent<NetworkId>(entity).Value;
+    world.DestroyEntity(entity);
+    networkInputSystem.DirectionsByNetworkId.Remove(networkId);
 
     var writer = new NetDataWriter();
-    EntitySpawnMessage.Write(writer, spawns);
-    server.Send(peer, writer, DeliveryMethod.ReliableOrdered);
+    EntityDespawnMessage.Write(writer, networkId);
+    server.SendToAll(writer, DeliveryMethod.ReliableOrdered);
 };
-server.ClientDisconnected += peer => Console.WriteLine($"Client disconnected: {peer.Address}");
 
-var networkInputSystem = new NetworkInputSystem();
-server.MessageReceived += (_, reader) =>
+server.MessageReceived += (peer, reader) =>
 {
-    if ((MessageType)reader.GetByte() == MessageType.ClientInput)
-        networkInputSystem.MoveDirection = ClientInputMessage.Read(reader);
+    if ((MessageType)reader.GetByte() != MessageType.ClientInput)
+        return;
+
+    var direction = ClientInputMessage.Read(reader);
+    if (peerToEntity.TryGetValue(peer, out var entity))
+        networkInputSystem.DirectionsByNetworkId[world.GetComponent<NetworkId>(entity).Value] = direction;
 };
 
 server.Start(NetworkConfig.DefaultPort);

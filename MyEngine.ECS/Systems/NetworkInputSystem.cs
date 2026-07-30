@@ -4,22 +4,26 @@ using Silk.NET.Maths;
 namespace MyEngine.ECS.Systems;
 
 /// <summary>
-/// Applies externally-supplied movement intent to Velocity on any entity
-/// that is both Movement and PlayerControlled. Mirrors InputMovementSystem,
-/// but the intent is set by the caller each tick (e.g. from a decoded
-/// ClientInputMessage) instead of read from local input — this is what lets
-/// a headless server drive player movement without ever touching Silk.NET.Input.
+/// Applies externally-supplied movement intent to Velocity on every
+/// NetworkId + Movement + PlayerControlled entity, looked up per entity by
+/// its NetworkId. Mirrors InputMovementSystem, but the intent comes from
+/// the caller (e.g. one direction per connected client, decoded from
+/// ClientInputMessage) instead of local input, and multiple entities can be
+/// driven independently — one per player.
 /// </summary>
 public sealed class NetworkInputSystem : ISystem
 {
-    public Vector3D<float> MoveDirection { get; set; }
+    public Dictionary<uint, Vector3D<float>> DirectionsByNetworkId { get; } = new();
 
     public void Update(World world, double fixedDeltaTime)
     {
-        foreach (var entity in world.Query<Movement, PlayerControlled>())
+        foreach (var entity in world.Query<NetworkId, Movement, PlayerControlled>())
         {
+            uint networkId = world.GetComponent<NetworkId>(entity).Value;
+            DirectionsByNetworkId.TryGetValue(networkId, out var direction);
+
             ref var movement = ref world.GetComponent<Movement>(entity);
-            movement.Velocity = MoveDirection * movement.Speed;
+            movement.Velocity = direction * movement.Speed;
         }
     }
 }

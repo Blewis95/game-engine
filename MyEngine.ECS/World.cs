@@ -72,6 +72,19 @@ public sealed class World
         }
     }
 
+    public IEnumerable<Entity> Query<T1, T2, T3>() where T1 : struct where T2 : struct where T3 : struct
+    {
+        var store1 = GetStore<T1>();
+        var store2 = GetStore<T2>();
+        var store3 = GetStore<T3>();
+
+        foreach (int id in store1.Keys)
+        {
+            if (store2.ContainsKey(id) && store3.ContainsKey(id))
+                yield return new Entity(id);
+        }
+    }
+
     private Dictionary<int, T> GetStore<T>() where T : struct
     {
         var type = typeof(T);
