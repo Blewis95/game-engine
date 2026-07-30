@@ -1,5 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
+using LiteNetLib;
+using LiteNetLib.Utils;
 using MyEngine.Core;
 using MyEngine.ECS;
 using MyEngine.ECS.Components;
@@ -125,7 +127,7 @@ gameLoop.Load += () =>
     }
 
     Console.WriteLine("Window loaded. Fixed tick rate: 60 Hz.");
-    Console.WriteLine("Hold right mouse button + WASD/space/ctrl: fly camera. Esc: quit.");
+    Console.WriteLine("Hold right mouse button + WASD/space/ctrl: fly camera. Arrow keys: move the player cube (server-authoritative - expect a little lag). Esc: quit.");
     Console.WriteLine("The scene is now entirely server-driven - this window just renders whatever it's sent.");
 };
 
@@ -135,6 +137,18 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
         gameLoop.Window.Close();
 
     networkClient.PollEvents();
+
+    var moveDirection = Vector3D<float>.Zero;
+    if (input.IsKeyDown(Key.Up)) moveDirection -= Vector3D<float>.UnitZ;
+    if (input.IsKeyDown(Key.Down)) moveDirection += Vector3D<float>.UnitZ;
+    if (input.IsKeyDown(Key.Right)) moveDirection += Vector3D<float>.UnitX;
+    if (input.IsKeyDown(Key.Left)) moveDirection -= Vector3D<float>.UnitX;
+    if (moveDirection.LengthSquared > 0f)
+        moveDirection = Vector3D.Normalize(moveDirection);
+
+    var inputWriter = new NetDataWriter();
+    ClientInputMessage.Write(inputWriter, moveDirection);
+    networkClient.Send(inputWriter, DeliveryMethod.Sequenced);
 
     if (cameraLookActive)
     {

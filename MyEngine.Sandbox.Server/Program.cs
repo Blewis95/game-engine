@@ -36,6 +36,14 @@ server.ClientConnected += peer =>
     server.Send(peer, writer, DeliveryMethod.ReliableOrdered);
 };
 server.ClientDisconnected += peer => Console.WriteLine($"Client disconnected: {peer.Address}");
+
+var networkInputSystem = new NetworkInputSystem();
+server.MessageReceived += (_, reader) =>
+{
+    if ((MessageType)reader.GetByte() == MessageType.ClientInput)
+        networkInputSystem.MoveDirection = ClientInputMessage.Read(reader);
+};
+
 server.Start(NetworkConfig.DefaultPort);
 Console.WriteLine($"Listening on UDP port {NetworkConfig.DefaultPort}.");
 
@@ -65,8 +73,9 @@ while (running)
 
     accumulator.Advance(realDeltaTime, fixedDeltaTime =>
     {
-        spinSystem.Update(world, fixedDeltaTime);
+        networkInputSystem.Update(world, fixedDeltaTime);
         movementSystem.Update(world, fixedDeltaTime);
+        spinSystem.Update(world, fixedDeltaTime);
         tickCount++;
 
         if (server.ConnectedPeers.Any())
