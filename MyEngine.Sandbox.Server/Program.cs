@@ -2,6 +2,7 @@ using System.Diagnostics;
 using MyEngine.Core;
 using MyEngine.ECS;
 using MyEngine.ECS.Systems;
+using MyEngine.Networking;
 using MyEngine.Scene;
 
 string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets");
@@ -12,6 +13,12 @@ var world = new World();
 SceneLoader.Load(Path.Combine(assetsDir, "scene.json"), world);
 
 Console.WriteLine($"Server started. Loaded {world.All().Count()} entities. Fixed tick rate: 60 Hz.");
+
+using var server = new NetworkServer();
+server.ClientConnected += peer => Console.WriteLine($"Client connected: {peer.Address}");
+server.ClientDisconnected += peer => Console.WriteLine($"Client disconnected: {peer.Address}");
+server.Start(NetworkConfig.DefaultPort);
+Console.WriteLine($"Listening on UDP port {NetworkConfig.DefaultPort}.");
 
 var spinSystem = new SpinSystem();
 var movementSystem = new MovementSystem();
@@ -34,6 +41,8 @@ while (running)
     double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
     double realDeltaTime = elapsedSeconds - lastElapsedSeconds;
     lastElapsedSeconds = elapsedSeconds;
+
+    server.PollEvents();
 
     accumulator.Advance(realDeltaTime, fixedDeltaTime =>
     {

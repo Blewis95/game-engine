@@ -3,6 +3,7 @@ using ImGuiNET;
 using MyEngine.Core;
 using MyEngine.ECS;
 using MyEngine.ECS.Systems;
+using MyEngine.Networking;
 using MyEngine.Rendering;
 using MyEngine.Sandbox;
 using MyEngine.Scene;
@@ -25,6 +26,7 @@ RenderResourceResolver resourceResolver = null!;
 Camera camera = null!;
 InputState input = null!;
 ImGuiController imGuiController = null!;
+NetworkClient networkClient = null!;
 SpinSystem spinSystem = null!;
 MovementSystem movementSystem = null!;
 InputMovementSystem inputMovementSystem = null!;
@@ -62,6 +64,12 @@ gameLoop.Load += () =>
     spinSystem = new SpinSystem();
     movementSystem = new MovementSystem();
     inputMovementSystem = new InputMovementSystem(input);
+
+    networkClient = new NetworkClient();
+    networkClient.Connected += peer => Console.WriteLine($"Connected to server ({peer.Address}).");
+    networkClient.Disconnected += () => Console.WriteLine("Disconnected from server.");
+    networkClient.Connect("127.0.0.1");
+    Console.WriteLine($"Connecting to server at 127.0.0.1:{NetworkConfig.DefaultPort}...");
 
     // Hold right mouse button to fly the camera (raw/hidden cursor); release
     // it to get a normal clickable cursor back for the scene inspector.
@@ -103,6 +111,8 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (input.IsKeyDown(Key.Escape))
         gameLoop.Window.Close();
 
+    networkClient.PollEvents();
+
     if (cameraLookActive)
     {
         float distance = moveSpeed * (float)fixedDeltaTime;
@@ -137,6 +147,7 @@ gameLoop.Window.FramebufferResize += size =>
 
 gameLoop.Closing += () =>
 {
+    networkClient.Dispose();
     imGuiController.Dispose();
     resourceResolver.DisposeAll();
     shader.Dispose();
