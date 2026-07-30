@@ -2,11 +2,10 @@ using System.Numerics;
 using ImGuiNET;
 using MyEngine.Core;
 using MyEngine.ECS;
-using MyEngine.ECS.Systems;
+using MyEngine.ECS.Components;
 using MyEngine.Networking;
 using MyEngine.Rendering;
 using MyEngine.Sandbox;
-using MyEngine.Scene;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL.Extensions.ImGui;
@@ -27,14 +26,14 @@ Camera camera = null!;
 InputState input = null!;
 ImGuiController imGuiController = null!;
 NetworkClient networkClient = null!;
-SpinSystem spinSystem = null!;
-MovementSystem movementSystem = null!;
-InputMovementSystem inputMovementSystem = null!;
 Vector2 lastMousePosition = default;
 bool cameraLookActive = false;
 
 var world = new World();
 var renderSystem = new RenderSystem();
+
+// Server owns simulation; this maps its NetworkId to our local (render-only) Entity.
+var networkIdToEntity = new Dictionary<uint, Entity>();
 
 const float moveSpeed = 3f;
 const float mouseSensitivity = 0.1f;
@@ -50,7 +49,6 @@ gameLoop.Load += () =>
 
     string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets");
     resourceResolver = new RenderResourceResolver(renderer.Gl, assetsDir);
-    SceneLoader.Load(Path.Combine(assetsDir, "scene.json"), world, resourceResolver);
 
     camera = new Camera
     {
@@ -61,13 +59,37 @@ gameLoop.Load += () =>
 
     input = new InputState(gameLoop.Window);
     imGuiController = new ImGuiController(renderer.Gl, gameLoop.Window, input.Context);
-    spinSystem = new SpinSystem();
-    movementSystem = new MovementSystem();
-    inputMovementSystem = new InputMovementSystem(input);
 
     networkClient = new NetworkClient();
     networkClient.Connected += peer => Console.WriteLine($"Connected to server ({peer.Address}).");
     networkClient.Disconnected += () => Console.WriteLine("Disconnected from server.");
+    networkClient.MessageReceived += reader =>
+    {
+        var messageType = (MessageType)reader.GetByte();
+        switch (messageType)
+        {
+            case MessageType.EntitySpawn:
+                foreach (var (networkId, mesh, texture) in EntitySpawnMessage.Read(reader))
+                {
+                    if (networkIdToEntity.ContainsKey(networkId))
+                        continue;
+
+                    var entity = world.CreateEntity();
+                    world.AddComponent(entity, Transform.Identity);
+                    world.AddComponent(entity, new Render(resourceResolver.ResolveMesh(mesh), resourceResolver.ResolveTexture(texture)));
+                    networkIdToEntity[networkId] = entity;
+                }
+                break;
+
+            case MessageType.WorldSnapshot:
+                foreach (var (networkId, transform) in WorldSnapshotMessage.Read(reader))
+                {
+                    if (networkIdToEntity.TryGetValue(networkId, out var entity))
+                        world.GetComponent<Transform>(entity) = transform;
+                }
+                break;
+        }
+    };
     networkClient.Connect("127.0.0.1");
     Console.WriteLine($"Connecting to server at 127.0.0.1:{NetworkConfig.DefaultPort}...");
 
@@ -103,7 +125,8 @@ gameLoop.Load += () =>
     }
 
     Console.WriteLine("Window loaded. Fixed tick rate: 60 Hz.");
-    Console.WriteLine("Hold right mouse button + WASD/space/ctrl: fly camera. Arrow keys: move the player cube. Esc: quit.");
+    Console.WriteLine("Hold right mouse button + WASD/space/ctrl: fly camera. Esc: quit.");
+    Console.WriteLine("The scene is now entirely server-driven - this window just renders whatever it's sent.");
 };
 
 gameLoop.FixedUpdate += fixedDeltaTime =>
@@ -123,10 +146,6 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
         if (input.IsKeyDown(Key.Space)) camera.MoveUp(distance);
         if (input.IsKeyDown(Key.ControlLeft)) camera.MoveUp(-distance);
     }
-
-    inputMovementSystem.Update(world, fixedDeltaTime);
-    movementSystem.Update(world, fixedDeltaTime);
-    spinSystem.Update(world, fixedDeltaTime);
 };
 
 gameLoop.Render += (deltaTime, _) =>
