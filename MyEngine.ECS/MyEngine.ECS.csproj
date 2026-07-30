@@ -10,4 +10,8 @@
     <PackageReference Include="Silk.NET.Maths" Version="2.23.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\MyEngine.Core\MyEngine.Core.csproj" />
+  </ItemGroup>
+
 </Project>

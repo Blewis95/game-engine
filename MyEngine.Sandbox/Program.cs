@@ -1,10 +1,10 @@
 using System.Numerics;
-using MyEngine.Assets;
 using MyEngine.Core;
 using MyEngine.ECS;
-using MyEngine.ECS.Components;
 using MyEngine.ECS.Systems;
 using MyEngine.Rendering;
+using MyEngine.Sandbox;
+using MyEngine.Scene;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -19,14 +19,15 @@ var gameLoop = new GameLoop(options, fixedUpdatesPerSecond: 60.0);
 
 Renderer renderer = null!;
 Shader shader = null!;
-Mesh cubeMesh = null!;
-Texture texture = null!;
+RenderResourceResolver resourceResolver = null!;
 Camera camera = null!;
 InputState input = null!;
+SpinSystem spinSystem = null!;
+MovementSystem movementSystem = null!;
+InputMovementSystem inputMovementSystem = null!;
 Vector2 lastMousePosition = default;
 
 var world = new World();
-var spinSystem = new SpinSystem();
 var renderSystem = new RenderSystem();
 
 const float moveSpeed = 3f;
@@ -42,37 +43,21 @@ gameLoop.Load += () =>
     shader = new Shader(renderer.Gl, vertexSource, fragmentSource);
 
     string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets");
-    var cubeMeshData = ModelLoader.Load(Path.Combine(assetsDir, "cube.gltf"));
-    var checkerImage = TextureLoader.Load(Path.Combine(assetsDir, "checker.png"));
-
-    cubeMesh = new Mesh(renderer.Gl, cubeMeshData.Vertices, cubeMeshData.Indices);
-    texture = new Texture(renderer.Gl, checkerImage.Pixels, checkerImage.Width, checkerImage.Height);
-
-    // Five cube entities sharing the same mesh/texture, spread along X.
-    // Spin rates vary (and the middle one has no Spin component at all)
-    // to show the SpinSystem driving simulation state independently per entity.
-    float[] spinRates = { -1.5f, -0.75f, 0f, 0.75f, 1.5f };
-    for (int i = 0; i < spinRates.Length; i++)
-    {
-        var entity = world.CreateEntity();
-
-        var transform = Transform.Identity;
-        transform.Position = new Vector3D<float>((i - 2) * 2f, 0f, 0f);
-        world.AddComponent(entity, transform);
-
-        world.AddComponent(entity, new Render(cubeMesh, texture));
-
-        if (spinRates[i] != 0f)
-            world.AddComponent(entity, new Spin(spinRates[i]));
-    }
+    resourceResolver = new RenderResourceResolver(renderer.Gl, assetsDir);
+    SceneLoader.Load(Path.Combine(assetsDir, "scene.json"), world, resourceResolver);
 
     camera = new Camera
     {
-        Position = new Vector3D<float>(0f, 0f, 8f),
+        Position = new Vector3D<float>(0f, 6f, 12f),
         AspectRatio = gameLoop.Window.FramebufferSize.X / (float)gameLoop.Window.FramebufferSize.Y
     };
+    camera.Look(0f, -25f);
 
     input = new InputState(gameLoop.Window);
+    spinSystem = new SpinSystem();
+    movementSystem = new MovementSystem();
+    inputMovementSystem = new InputMovementSystem(input);
+
     var mouse = input.PrimaryMouse;
     if (mouse is not null)
     {
@@ -86,7 +71,8 @@ gameLoop.Load += () =>
         };
     }
 
-    Console.WriteLine("Window loaded. Fixed tick rate: 60 Hz. WASD to move, mouse to look, Esc to quit.");
+    Console.WriteLine("Window loaded. Fixed tick rate: 60 Hz.");
+    Console.WriteLine("WASD + mouse: fly camera. Arrow keys: move the player cube. Esc: quit.");
 };
 
 gameLoop.FixedUpdate += fixedDeltaTime =>
@@ -102,6 +88,8 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (input.IsKeyDown(Key.Space)) camera.MoveUp(distance);
     if (input.IsKeyDown(Key.ControlLeft)) camera.MoveUp(-distance);
 
+    inputMovementSystem.Update(world, fixedDeltaTime);
+    movementSystem.Update(world, fixedDeltaTime);
     spinSystem.Update(world, fixedDeltaTime);
 };
 
@@ -119,8 +107,7 @@ gameLoop.Window.FramebufferResize += size =>
 
 gameLoop.Closing += () =>
 {
-    cubeMesh.Dispose();
-    texture.Dispose();
+    resourceResolver.DisposeAll();
     shader.Dispose();
     Console.WriteLine("Window closing.");
 };
