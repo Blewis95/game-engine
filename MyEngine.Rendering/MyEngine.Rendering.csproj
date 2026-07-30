@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyEngine.Core\MyEngine.Core.csproj" />
+    <ProjectReference Include="..\MyEngine.ECS\MyEngine.ECS.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,8 @@
 using System.Numerics;
 using MyEngine.Core;
+using MyEngine.ECS;
+using MyEngine.ECS.Components;
+using MyEngine.ECS.Systems;
 using MyEngine.Rendering;
 using MyEngine.Sandbox;
 using Silk.NET.Input;
@@ -16,12 +19,15 @@ var gameLoop = new GameLoop(options, fixedUpdatesPerSecond: 60.0);
 
 Renderer renderer = null!;
 Shader shader = null!;
-Mesh cube = null!;
+Mesh cubeMesh = null!;
 Texture texture = null!;
 Camera camera = null!;
 InputState input = null!;
 Vector2 lastMousePosition = default;
-double simulationTime = 0;
+
+var world = new World();
+var spinSystem = new SpinSystem();
+var renderSystem = new RenderSystem();
 
 const float moveSpeed = 3f;
 const float mouseSensitivity = 0.1f;
@@ -35,11 +41,30 @@ gameLoop.Load += () =>
     string fragmentSource = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Shaders", "basic.frag"));
     shader = new Shader(renderer.Gl, vertexSource, fragmentSource);
 
-    cube = new Mesh(renderer.Gl, CubeGeometry.Vertices, CubeGeometry.Indices);
+    cubeMesh = new Mesh(renderer.Gl, CubeGeometry.Vertices, CubeGeometry.Indices);
     texture = Texture.CreateCheckerboard(renderer.Gl);
+
+    // Five cube entities sharing the same mesh/texture, spread along X.
+    // Spin rates vary (and the middle one has no Spin component at all)
+    // to show the SpinSystem driving simulation state independently per entity.
+    float[] spinRates = { -1.5f, -0.75f, 0f, 0.75f, 1.5f };
+    for (int i = 0; i < spinRates.Length; i++)
+    {
+        var entity = world.CreateEntity();
+
+        var transform = Transform.Identity;
+        transform.Position = new Vector3D<float>((i - 2) * 2f, 0f, 0f);
+        world.AddComponent(entity, transform);
+
+        world.AddComponent(entity, new Render(cubeMesh, texture));
+
+        if (spinRates[i] != 0f)
+            world.AddComponent(entity, new Spin(spinRates[i]));
+    }
 
     camera = new Camera
     {
+        Position = new Vector3D<float>(0f, 0f, 8f),
         AspectRatio = gameLoop.Window.FramebufferSize.X / (float)gameLoop.Window.FramebufferSize.Y
     };
 
@@ -62,8 +87,6 @@ gameLoop.Load += () =>
 
 gameLoop.FixedUpdate += fixedDeltaTime =>
 {
-    simulationTime += fixedDeltaTime;
-
     if (input.IsKeyDown(Key.Escape))
         gameLoop.Window.Close();
 
@@ -74,23 +97,14 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (input.IsKeyDown(Key.A)) camera.MoveRight(-distance);
     if (input.IsKeyDown(Key.Space)) camera.MoveUp(distance);
     if (input.IsKeyDown(Key.ControlLeft)) camera.MoveUp(-distance);
+
+    spinSystem.Update(world, fixedDeltaTime);
 };
 
 gameLoop.Render += (_, _) =>
 {
     renderer.Clear();
-
-    shader.Use();
-    shader.SetUniform("uView", camera.GetViewMatrix());
-    shader.SetUniform("uProjection", camera.GetProjectionMatrix());
-
-    var model = Matrix4X4.CreateRotationY((float)simulationTime);
-    shader.SetUniform("uModel", model);
-
-    texture.Bind();
-    shader.SetUniform("uTexture", 0);
-
-    cube.Draw();
+    renderSystem.Render(world, shader, camera);
 };
 
 gameLoop.Window.FramebufferResize += size =>
@@ -101,7 +115,7 @@ gameLoop.Window.FramebufferResize += size =>
 
 gameLoop.Closing += () =>
 {
-    cube.Dispose();
+    cubeMesh.Dispose();
     texture.Dispose();
     shader.Dispose();
     Console.WriteLine("Window closing.");
