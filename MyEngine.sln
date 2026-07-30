@@ -15,6 +15,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Scene", "MyEngine.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Sandbox", "MyEngine.Sandbox\MyEngine.Sandbox.csproj", "{5508B0FB-1527-4163-B95B-D3B9E5AA7F23}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Networking", "MyEngine.Networking\MyEngine.Networking.csproj", "{E2B8B528-BC34-4464-BEFC-CE45422EE631}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Sandbox.Server", "MyEngine.Sandbox.Server\MyEngine.Sandbox.Server.csproj", "{E497DBCC-8FAA-4303-84F9-0783A10429F3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +52,13 @@ Global
 		{5508B0FB-1527-4163-B95B-D3B9E5AA7F23}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5508B0FB-1527-4163-B95B-D3B9E5AA7F23}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5508B0FB-1527-4163-B95B-D3B9E5AA7F23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2B8B528-BC34-4464-BEFC-CE45422EE631}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2B8B528-BC34-4464-BEFC-CE45422EE631}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2B8B528-BC34-4464-BEFC-CE45422EE631}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2B8B528-BC34-4464-BEFC-CE45422EE631}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E497DBCC-8FAA-4303-84F9-0783A10429F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E497DBCC-8FAA-4303-84F9-0783A10429F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E497DBCC-8FAA-4303-84F9-0783A10429F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E497DBCC-8FAA-4303-84F9-0783A10429F3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -9,10 +9,10 @@ namespace MyEngine.Core;
 /// </summary>
 public sealed class GameLoop
 {
-    private double _accumulator;
+    private readonly FixedTickAccumulator _accumulator;
 
     public IWindow Window { get; }
-    public double FixedDeltaTime { get; }
+    public double FixedDeltaTime => _accumulator.FixedDeltaTime;
 
     public event Action? Load;
     public event Action<double>? FixedUpdate;
@@ -21,7 +21,7 @@ public sealed class GameLoop
 
     public GameLoop(WindowOptions options, double fixedUpdatesPerSecond = 60.0)
     {
-        FixedDeltaTime = 1.0 / fixedUpdatesPerSecond;
+        _accumulator = new FixedTickAccumulator(fixedUpdatesPerSecond);
 
         Window = Silk.NET.Windowing.Window.Create(options);
         Window.Load += () => Load?.Invoke();
@@ -32,20 +32,9 @@ public sealed class GameLoop
 
     public void Run() => Window.Run();
 
-    private void OnUpdate(double deltaTime)
-    {
-        _accumulator += deltaTime;
+    private void OnUpdate(double deltaTime) =>
+        _accumulator.Advance(deltaTime, fixedDeltaTime => FixedUpdate?.Invoke(fixedDeltaTime));
 
-        while (_accumulator >= FixedDeltaTime)
-        {
-            FixedUpdate?.Invoke(FixedDeltaTime);
-            _accumulator -= FixedDeltaTime;
-        }
-    }
-
-    private void OnRender(double deltaTime)
-    {
-        double interpolationAlpha = _accumulator / FixedDeltaTime;
-        Render?.Invoke(deltaTime, interpolationAlpha);
-    }
+    private void OnRender(double deltaTime) =>
+        Render?.Invoke(deltaTime, _accumulator.InterpolationAlpha);
 }

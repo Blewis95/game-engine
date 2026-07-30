@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyEngine.Core\MyEngine.Core.csproj" />
+    <ProjectReference Include="..\MyEngine.ECS\MyEngine.ECS.csproj" />
+    <ProjectReference Include="..\MyEngine.Scene\MyEngine.Scene.csproj" />
+    <ProjectReference Include="..\MyEngine.Networking\MyEngine.Networking.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Single source of truth: the same scene.json used by MyEngine.Sandbox (the client). -->
+    <None Include="..\MyEngine.Sandbox\Assets\scene.json" Link="Assets\scene.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

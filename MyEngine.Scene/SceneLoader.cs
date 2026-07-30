@@ -18,9 +18,12 @@ public static class SceneLoader
         var document = JsonSerializer.Deserialize<SceneDocument>(json, Options)
             ?? throw new InvalidDataException($"Scene file '{path}' is empty or invalid.");
 
+        uint nextNetworkId = 0;
+
         foreach (var sceneEntity in document.Entities)
         {
             var entity = world.CreateEntity();
+            world.AddComponent(entity, new NetworkId(nextNetworkId++));
 
             var t = sceneEntity.Transform ?? new SceneTransform();
             world.AddComponent(entity, new Transform
@@ -42,11 +45,16 @@ public static class SceneLoader
             if (sceneEntity.PlayerControlled)
                 world.AddComponent(entity, new PlayerControlled());
 
-            if (sceneEntity.Render is { } render && resourceResolver is not null)
+            if (sceneEntity.Render is { } render)
             {
-                object mesh = resourceResolver.ResolveMesh(render.Mesh);
-                object texture = resourceResolver.ResolveTexture(render.Texture);
-                world.AddComponent(entity, new Render(mesh, texture));
+                world.AddComponent(entity, new RenderInfo { Mesh = render.Mesh, Texture = render.Texture });
+
+                if (resourceResolver is not null)
+                {
+                    object mesh = resourceResolver.ResolveMesh(render.Mesh);
+                    object texture = resourceResolver.ResolveTexture(render.Texture);
+                    world.AddComponent(entity, new Render(mesh, texture));
+                }
             }
         }
     }
