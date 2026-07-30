@@ -13,6 +13,7 @@ public sealed class InputState
     }
 
     public IMouse? PrimaryMouse => _context.Mice.Count > 0 ? _context.Mice[0] : null;
+    public IInputContext Context => _context;
 
     public bool IsKeyDown(Key key)
     {

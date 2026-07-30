@@ -1,4 +1,5 @@
 using System.Numerics;
+using ImGuiNET;
 using MyEngine.Core;
 using MyEngine.ECS;
 using MyEngine.ECS.Systems;
@@ -7,6 +8,7 @@ using MyEngine.Sandbox;
 using MyEngine.Scene;
 using Silk.NET.Input;
 using Silk.NET.Maths;
+using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Windowing;
 
 var options = WindowOptions.Default with
@@ -22,10 +24,12 @@ Shader shader = null!;
 RenderResourceResolver resourceResolver = null!;
 Camera camera = null!;
 InputState input = null!;
+ImGuiController imGuiController = null!;
 SpinSystem spinSystem = null!;
 MovementSystem movementSystem = null!;
 InputMovementSystem inputMovementSystem = null!;
 Vector2 lastMousePosition = default;
+bool cameraLookActive = false;
 
 var world = new World();
 var renderSystem = new RenderSystem();
@@ -54,17 +58,36 @@ gameLoop.Load += () =>
     camera.Look(0f, -25f);
 
     input = new InputState(gameLoop.Window);
+    imGuiController = new ImGuiController(renderer.Gl, gameLoop.Window, input.Context);
     spinSystem = new SpinSystem();
     movementSystem = new MovementSystem();
     inputMovementSystem = new InputMovementSystem(input);
 
+    // Hold right mouse button to fly the camera (raw/hidden cursor); release
+    // it to get a normal clickable cursor back for the scene inspector.
     var mouse = input.PrimaryMouse;
     if (mouse is not null)
     {
-        mouse.Cursor.CursorMode = CursorMode.Raw;
-        lastMousePosition = mouse.Position;
+        mouse.MouseDown += (_, button) =>
+        {
+            if (button != MouseButton.Right) return;
+            cameraLookActive = true;
+            mouse.Cursor.CursorMode = CursorMode.Raw;
+            lastMousePosition = mouse.Position;
+        };
+
+        mouse.MouseUp += (_, button) =>
+        {
+            if (button != MouseButton.Right) return;
+            cameraLookActive = false;
+            mouse.Cursor.CursorMode = CursorMode.Normal;
+        };
+
         mouse.MouseMove += (_, position) =>
         {
+            if (!cameraLookActive || ImGui.GetIO().WantCaptureMouse)
+                return;
+
             var delta = position - lastMousePosition;
             lastMousePosition = position;
             camera.Look(delta.X * mouseSensitivity, -delta.Y * mouseSensitivity);
@@ -72,7 +95,7 @@ gameLoop.Load += () =>
     }
 
     Console.WriteLine("Window loaded. Fixed tick rate: 60 Hz.");
-    Console.WriteLine("WASD + mouse: fly camera. Arrow keys: move the player cube. Esc: quit.");
+    Console.WriteLine("Hold right mouse button + WASD/space/ctrl: fly camera. Arrow keys: move the player cube. Esc: quit.");
 };
 
 gameLoop.FixedUpdate += fixedDeltaTime =>
@@ -80,23 +103,30 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (input.IsKeyDown(Key.Escape))
         gameLoop.Window.Close();
 
-    float distance = moveSpeed * (float)fixedDeltaTime;
-    if (input.IsKeyDown(Key.W)) camera.MoveForward(distance);
-    if (input.IsKeyDown(Key.S)) camera.MoveForward(-distance);
-    if (input.IsKeyDown(Key.D)) camera.MoveRight(distance);
-    if (input.IsKeyDown(Key.A)) camera.MoveRight(-distance);
-    if (input.IsKeyDown(Key.Space)) camera.MoveUp(distance);
-    if (input.IsKeyDown(Key.ControlLeft)) camera.MoveUp(-distance);
+    if (cameraLookActive)
+    {
+        float distance = moveSpeed * (float)fixedDeltaTime;
+        if (input.IsKeyDown(Key.W)) camera.MoveForward(distance);
+        if (input.IsKeyDown(Key.S)) camera.MoveForward(-distance);
+        if (input.IsKeyDown(Key.D)) camera.MoveRight(distance);
+        if (input.IsKeyDown(Key.A)) camera.MoveRight(-distance);
+        if (input.IsKeyDown(Key.Space)) camera.MoveUp(distance);
+        if (input.IsKeyDown(Key.ControlLeft)) camera.MoveUp(-distance);
+    }
 
     inputMovementSystem.Update(world, fixedDeltaTime);
     movementSystem.Update(world, fixedDeltaTime);
     spinSystem.Update(world, fixedDeltaTime);
 };
 
-gameLoop.Render += (_, _) =>
+gameLoop.Render += (deltaTime, _) =>
 {
     renderer.Clear();
     renderSystem.Render(world, shader, camera);
+
+    imGuiController.Update((float)deltaTime);
+    SceneInspector.Draw(world);
+    imGuiController.Render();
 };
 
 gameLoop.Window.FramebufferResize += size =>
@@ -107,6 +137,7 @@ gameLoop.Window.FramebufferResize += size =>
 
 gameLoop.Closing += () =>
 {
+    imGuiController.Dispose();
     resourceResolver.DisposeAll();
     shader.Dispose();
     Console.WriteLine("Window closing.");

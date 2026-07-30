@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# ImGui window-layout state (local UI preferences, not project config)
+imgui.ini
+
 # User-specific files
 *.rsuser
 *.suo

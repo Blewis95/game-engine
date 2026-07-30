@@ -48,6 +48,12 @@ public sealed class World
     public bool TryGetComponent<T>(Entity entity, out T component) where T : struct =>
         GetStore<T>().TryGetValue(entity.Id, out component);
 
+    public IEnumerable<Entity> All()
+    {
+        foreach (int id in _entities)
+            yield return new Entity(id);
+    }
+
     public IEnumerable<Entity> Query<T>() where T : struct
     {
         foreach (int id in GetStore<T>().Keys)
