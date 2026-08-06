@@ -38,6 +38,19 @@ public sealed class NetworkServer : IDisposable
         };
     }
 
+    /// <summary>
+    /// Artificially delays this server's outgoing traffic (LiteNetLib's
+    /// built-in test feature) - not for production use, only for verifying
+    /// prediction/reconciliation actually hides latency rather than just
+    /// happening to look fine on localhost.
+    /// </summary>
+    public void SimulateLatency(int minMilliseconds, int maxMilliseconds)
+    {
+        _netManager.SimulateLatency = true;
+        _netManager.SimulationMinLatency = minMilliseconds;
+        _netManager.SimulationMaxLatency = maxMilliseconds;
+    }
+
     public void Start(int port = NetworkConfig.DefaultPort) => _netManager.Start(port);
 
     /// <summary>Call once per loop iteration to process incoming events/callbacks.</summary>

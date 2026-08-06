@@ -104,6 +104,12 @@ server.MessageReceived += (peer, reader) =>
         networkInputSystem.DirectionsByNetworkId[world.GetComponent<NetworkId>(entity).Value] = direction;
 };
 
+if (args.Contains("--simulate-latency"))
+{
+    server.SimulateLatency(150, 250);
+    Console.WriteLine("Artificial latency simulation ENABLED (150-250ms) - testing only, verifying prediction/reconciliation actually hides it.");
+}
+
 server.Start(NetworkConfig.DefaultPort);
 Console.WriteLine($"Listening on UDP port {NetworkConfig.DefaultPort}.");
 
