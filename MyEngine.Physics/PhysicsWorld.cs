@@ -19,13 +19,17 @@ public sealed class PhysicsWorld : IDisposable
     private readonly Dictionary<Entity, BodyHandle> _dynamicBodies = new();
     private readonly Dictionary<Entity, StaticHandle> _staticBodies = new();
 
+    // Stronger than real-world (-9.81) for a snappier, more game-ish fall/jump
+    // feel. Tunable later; not worth its own configuration surface yet.
+    private static readonly Vector3 Gravity = new(0f, -20f, 0f);
+
     public PhysicsWorld()
     {
         _bufferPool = new BufferPool();
         _simulation = Simulation.Create(
             _bufferPool,
             new NarrowPhaseCallbacks(),
-            new PoseIntegratorCallbacks(),
+            new PoseIntegratorCallbacks { Gravity = Gravity },
             new SolveDescription(velocityIterationCount: 8, substepCount: 1));
     }
 
@@ -71,7 +75,7 @@ public sealed class PhysicsWorld : IDisposable
         // this plan's scope, not a correctness issue at our entity counts.
     }
 
-    /// <summary>Pushes Movement.Velocity into each tracked dynamic body ahead of a step.</summary>
+    /// <summary>Pushes Movement.Velocity's horizontal (X/Z) components into each tracked dynamic body ahead of a step.</summary>
     public void ApplyVelocities(World world)
     {
         foreach (var (entity, handle) in _dynamicBodies)
@@ -84,7 +88,13 @@ public sealed class PhysicsWorld : IDisposable
             // A sleeping body's velocity isn't integrated even if we set it -
             // force it awake whenever we're actively driving it from input.
             body.Awake = true;
-            body.Velocity.Linear = ToSystem(movement.Velocity);
+
+            // Only drive X/Z from input - Y is gravity's (and later, jump's)
+            // to own. Overwriting it here would cancel gravity out every
+            // tick before Step() ever gets a chance to accumulate it.
+            var horizontal = ToSystem(movement.Velocity);
+            var currentVelocity = body.Velocity.Linear;
+            body.Velocity.Linear = new Vector3(horizontal.X, currentVelocity.Y, horizontal.Z);
         }
     }
 

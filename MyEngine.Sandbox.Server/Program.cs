@@ -41,7 +41,7 @@ server.ClientConnected += peer =>
     world.AddComponent(entity, networkId);
     world.AddComponent(entity, new Transform
     {
-        Position = new Vector3D<float>(playerSpawnIndex * 1.5f, 0f, -3f),
+        Position = new Vector3D<float>(playerSpawnIndex * 1.5f, 0.5f, -3f),
         Rotation = Quaternion<float>.Identity,
         Scale = Vector3D<float>.One
     });

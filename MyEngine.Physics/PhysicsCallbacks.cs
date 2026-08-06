@@ -34,9 +34,13 @@ internal struct NarrowPhaseCallbacks : INarrowPhaseCallbacks
     }
 }
 
-/// <summary>No gravity - out of scope for this plan (movement is flat-plane only, see game-engine-physics-plan.md).</summary>
+/// <summary>Applies a constant downward acceleration to every dynamic body each step.</summary>
 internal struct PoseIntegratorCallbacks : IPoseIntegratorCallbacks
 {
+    public Vector3 Gravity;
+
+    private Vector3Wide _gravityWideDt;
+
     public readonly AngularIntegrationMode AngularIntegrationMode => AngularIntegrationMode.Nonconserving;
     public readonly bool AllowSubstepsForUnconstrainedBodies => false;
     public readonly bool IntegrateVelocityForKinematics => false;
@@ -47,11 +51,12 @@ internal struct PoseIntegratorCallbacks : IPoseIntegratorCallbacks
 
     public void PrepareForIntegration(float dt)
     {
+        _gravityWideDt = Vector3Wide.Broadcast(Gravity * dt);
     }
 
     public void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation,
         BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity)
     {
-        // No-op: no gravity or other global forces to apply.
+        velocity.Linear += _gravityWideDt;
     }
 }
