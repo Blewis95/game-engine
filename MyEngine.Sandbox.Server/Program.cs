@@ -22,7 +22,9 @@ Console.WriteLine($"Server started. Loaded {world.All().Count()} entities. Fixed
 // player entities continue that sequence.
 uint nextNetworkId = (uint)world.All().Count();
 int playerSpawnIndex = 0;
+const float playerSpeed = 4f;
 var peerToEntity = new Dictionary<NetPeer, Entity>();
+var lastProcessedSequenceByPeer = new Dictionary<NetPeer, uint>();
 
 var networkInputSystem = new NetworkInputSystem();
 
@@ -42,7 +44,7 @@ server.ClientConnected += peer =>
         Scale = Vector3D<float>.One
     });
     world.AddComponent(entity, new RenderInfo { Mesh = "cube.gltf", Texture = "checker.png" });
-    world.AddComponent(entity, new Movement { Speed = 4f, Velocity = Vector3D<float>.Zero });
+    world.AddComponent(entity, new Movement { Speed = playerSpeed, Velocity = Vector3D<float>.Zero });
     world.AddComponent(entity, new PlayerControlled());
     world.AddComponent(entity, new Health { Current = 100, Max = 100 });
     playerSpawnIndex++;
@@ -56,6 +58,12 @@ server.ClientConnected += peer =>
     var fullBatchWriter = new NetDataWriter();
     EntitySpawnMessage.Write(fullBatchWriter, fullBatch);
     server.Send(peer, fullBatchWriter, DeliveryMethod.ReliableOrdered);
+
+    // Same channel + ReliableOrdered as the spawn batch above, so this is
+    // guaranteed to arrive after the entity already exists client-side.
+    var yourPlayerWriter = new NetDataWriter();
+    YourPlayerMessage.Write(yourPlayerWriter, networkId.Value, playerSpeed);
+    server.Send(peer, yourPlayerWriter, DeliveryMethod.ReliableOrdered);
 
     // Everyone already connected just needs to hear about the new arrival.
     var newPlayerSpawn = new List<(uint, string, string)> { (networkId.Value, "cube.gltf", "checker.png") };
@@ -78,6 +86,7 @@ server.ClientDisconnected += peer =>
     uint networkId = world.GetComponent<NetworkId>(entity).Value;
     world.DestroyEntity(entity);
     networkInputSystem.DirectionsByNetworkId.Remove(networkId);
+    lastProcessedSequenceByPeer.Remove(peer);
 
     var writer = new NetDataWriter();
     EntityDespawnMessage.Write(writer, networkId);
@@ -89,8 +98,8 @@ server.MessageReceived += (peer, reader) =>
     if ((MessageType)reader.GetByte() != MessageType.ClientInput)
         return;
 
-    // Sequence isn't tracked/used yet - that's Phase 2 (per-peer ack tracking).
-    var (_, direction) = ClientInputMessage.Read(reader);
+    var (sequence, direction) = ClientInputMessage.Read(reader);
+    lastProcessedSequenceByPeer[peer] = sequence;
     if (peerToEntity.TryGetValue(peer, out var entity))
         networkInputSystem.DirectionsByNetworkId[world.GetComponent<NetworkId>(entity).Value] = direction;
 };
@@ -135,11 +144,15 @@ while (running)
                 .Select(entity => (world.GetComponent<NetworkId>(entity).Value, world.GetComponent<Transform>(entity)))
                 .ToList();
 
-            // lastProcessedInputSequence is a placeholder until Phase 2 sends a
-            // personalized snapshot per peer with its own real ack value.
-            var writer = new NetDataWriter();
-            WorldSnapshotMessage.Write(writer, 0, snapshot);
-            server.SendToAll(writer, DeliveryMethod.Sequenced);
+            // Personalized per peer: same entity list, but each peer gets its
+            // own last-processed-input-sequence ack so it can reconcile.
+            foreach (var connectedPeer in server.ConnectedPeers)
+            {
+                uint lastProcessed = lastProcessedSequenceByPeer.GetValueOrDefault(connectedPeer);
+                var writer = new NetDataWriter();
+                WorldSnapshotMessage.Write(writer, lastProcessed, snapshot);
+                server.Send(connectedPeer, writer, DeliveryMethod.Sequenced);
+            }
         }
     });
 
