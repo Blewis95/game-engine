@@ -5,6 +5,7 @@
     <ProjectReference Include="..\MyEngine.ECS\MyEngine.ECS.csproj" />
     <ProjectReference Include="..\MyEngine.Scene\MyEngine.Scene.csproj" />
     <ProjectReference Include="..\MyEngine.Networking\MyEngine.Networking.csproj" />
+    <ProjectReference Include="..\MyEngine.Physics\MyEngine.Physics.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

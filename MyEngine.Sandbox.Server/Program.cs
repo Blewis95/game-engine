@@ -6,6 +6,7 @@ using MyEngine.ECS;
 using MyEngine.ECS.Components;
 using MyEngine.ECS.Systems;
 using MyEngine.Networking;
+using MyEngine.Physics;
 using MyEngine.Scene;
 using Silk.NET.Maths;
 
@@ -27,6 +28,7 @@ var peerToEntity = new Dictionary<NetPeer, Entity>();
 var lastProcessedSequenceByPeer = new Dictionary<NetPeer, uint>();
 
 var networkInputSystem = new NetworkInputSystem();
+using var physicsWorld = new PhysicsWorld();
 
 using var server = new NetworkServer();
 
@@ -47,6 +49,7 @@ server.ClientConnected += peer =>
     world.AddComponent(entity, new Movement { Speed = playerSpeed, Velocity = Vector3D<float>.Zero });
     world.AddComponent(entity, new PlayerControlled());
     world.AddComponent(entity, new Health { Current = 100, Max = 100 });
+    world.AddComponent(entity, new Collider { HalfExtents = new Vector3D<float>(0.5f, 0.5f, 0.5f), IsStatic = false });
     playerSpawnIndex++;
 
     peerToEntity[peer] = entity;
@@ -84,6 +87,7 @@ server.ClientDisconnected += peer =>
         return;
 
     uint networkId = world.GetComponent<NetworkId>(entity).Value;
+    physicsWorld.RemoveEntity(entity);
     world.DestroyEntity(entity);
     networkInputSystem.DirectionsByNetworkId.Remove(networkId);
     lastProcessedSequenceByPeer.Remove(peer);
@@ -114,7 +118,6 @@ server.Start(NetworkConfig.DefaultPort);
 Console.WriteLine($"Listening on UDP port {NetworkConfig.DefaultPort}.");
 
 var spinSystem = new SpinSystem();
-var movementSystem = new MovementSystem();
 var accumulator = new FixedTickAccumulator(60.0);
 
 bool running = true;
@@ -140,8 +143,16 @@ while (running)
     accumulator.Advance(realDeltaTime, fixedDeltaTime =>
     {
         networkInputSystem.Update(world, fixedDeltaTime);
-        movementSystem.Update(world, fixedDeltaTime);
         spinSystem.Update(world, fixedDeltaTime);
+
+        // Physics replaces MovementSystem's naive Position += Velocity * dt
+        // for every entity that has a Collider (currently: all of them).
+        physicsWorld.SyncNewEntities(world);
+        physicsWorld.SyncStaticPoses(world);
+        physicsWorld.ApplyVelocities(world);
+        physicsWorld.Step((float)fixedDeltaTime);
+        physicsWorld.SyncTransformsToWorld(world);
+
         tickCount++;
 
         if (server.ConnectedPeers.Any())
