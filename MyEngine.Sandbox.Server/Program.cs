@@ -89,7 +89,8 @@ server.MessageReceived += (peer, reader) =>
     if ((MessageType)reader.GetByte() != MessageType.ClientInput)
         return;
 
-    var direction = ClientInputMessage.Read(reader);
+    // Sequence isn't tracked/used yet - that's Phase 2 (per-peer ack tracking).
+    var (_, direction) = ClientInputMessage.Read(reader);
     if (peerToEntity.TryGetValue(peer, out var entity))
         networkInputSystem.DirectionsByNetworkId[world.GetComponent<NetworkId>(entity).Value] = direction;
 };
@@ -134,8 +135,10 @@ while (running)
                 .Select(entity => (world.GetComponent<NetworkId>(entity).Value, world.GetComponent<Transform>(entity)))
                 .ToList();
 
+            // lastProcessedInputSequence is a placeholder until Phase 2 sends a
+            // personalized snapshot per peer with its own real ack value.
             var writer = new NetDataWriter();
-            WorldSnapshotMessage.Write(writer, snapshot);
+            WorldSnapshotMessage.Write(writer, 0, snapshot);
             server.SendToAll(writer, DeliveryMethod.Sequenced);
         }
     });

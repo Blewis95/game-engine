@@ -4,12 +4,20 @@ using Silk.NET.Maths;
 
 namespace MyEngine.Networking;
 
-/// <summary>Per-tick authoritative Transform for every replicated entity, keyed by NetworkId.</summary>
+/// <summary>
+/// Per-tick authoritative Transform for every replicated entity, keyed by
+/// NetworkId. Also carries the sequence number of the latest ClientInput
+/// this recipient's peer has had applied server-side, so that peer's client
+/// can reconcile its own prediction — this means the snapshot sent to each
+/// peer is personalized (differs only in LastProcessedInputSequence), not a
+/// single shared broadcast buffer.
+/// </summary>
 public static class WorldSnapshotMessage
 {
-    public static void Write(NetDataWriter writer, IReadOnlyList<(uint NetworkId, Transform Transform)> entities)
+    public static void Write(NetDataWriter writer, uint lastProcessedInputSequence, IReadOnlyList<(uint NetworkId, Transform Transform)> entities)
     {
         writer.Put((byte)MessageType.WorldSnapshot);
+        writer.Put(lastProcessedInputSequence);
         writer.Put((ushort)entities.Count);
 
         foreach (var (networkId, transform) in entities)
@@ -19,8 +27,9 @@ public static class WorldSnapshotMessage
         }
     }
 
-    public static List<(uint NetworkId, Transform Transform)> Read(NetDataReader reader)
+    public static (uint LastProcessedInputSequence, List<(uint NetworkId, Transform Transform)> Entities) Read(NetDataReader reader)
     {
+        uint lastProcessedInputSequence = reader.GetUInt();
         ushort count = reader.GetUShort();
         var result = new List<(uint, Transform)>(count);
 
@@ -31,7 +40,7 @@ public static class WorldSnapshotMessage
             result.Add((networkId, transform));
         }
 
-        return result;
+        return (lastProcessedInputSequence, result);
     }
 
     private static void WriteTransform(NetDataWriter writer, Transform t)

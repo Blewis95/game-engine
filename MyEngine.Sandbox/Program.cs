@@ -84,7 +84,9 @@ gameLoop.Load += () =>
                 break;
 
             case MessageType.WorldSnapshot:
-                foreach (var (networkId, transform) in WorldSnapshotMessage.Read(reader))
+                // LastProcessedInputSequence isn't consumed yet - that's Phase 3 (reconciliation).
+                var (_, snapshotEntities) = WorldSnapshotMessage.Read(reader);
+                foreach (var (networkId, transform) in snapshotEntities)
                 {
                     if (networkIdToEntity.TryGetValue(networkId, out var entity))
                         world.GetComponent<Transform>(entity) = transform;
@@ -152,8 +154,9 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (moveDirection.LengthSquared > 0f)
         moveDirection = Vector3D.Normalize(moveDirection);
 
+    // Sequence is a placeholder (always 0) until Phase 3 wires up PredictedMovement.
     var inputWriter = new NetDataWriter();
-    ClientInputMessage.Write(inputWriter, moveDirection);
+    ClientInputMessage.Write(inputWriter, 0, moveDirection);
     networkClient.Send(inputWriter, DeliveryMethod.Sequenced);
 
     if (cameraLookActive)

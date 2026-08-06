@@ -6,4 +6,5 @@ public enum MessageType : byte
     WorldSnapshot = 2,
     ClientInput = 3,
     EntityDespawn = 4,
+    YourPlayer = 5,
 }
