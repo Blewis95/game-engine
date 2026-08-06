@@ -12,6 +12,7 @@ public sealed class SceneEntity
     public SceneSpin? Spin { get; init; }
     public SceneHealth? Health { get; init; }
     public SceneMovement? Movement { get; init; }
+    public SceneCollider? Collider { get; init; }
     public bool PlayerControlled { get; init; }
 }
 
@@ -42,4 +43,10 @@ public sealed class SceneHealth
 public sealed class SceneMovement
 {
     public float Speed { get; init; }
+}
+
+public sealed class SceneCollider
+{
+    public float[] HalfExtents { get; init; } = { 0.5f, 0.5f, 0.5f };
+    public bool IsStatic { get; init; } = true;
 }

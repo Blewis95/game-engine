@@ -45,6 +45,15 @@ public static class SceneLoader
             if (sceneEntity.PlayerControlled)
                 world.AddComponent(entity, new PlayerControlled());
 
+            if (sceneEntity.Collider is { } collider)
+            {
+                world.AddComponent(entity, new Collider
+                {
+                    HalfExtents = new Vector3D<float>(collider.HalfExtents[0], collider.HalfExtents[1], collider.HalfExtents[2]),
+                    IsStatic = collider.IsStatic
+                });
+            }
+
             if (sceneEntity.Render is { } render)
             {
                 world.AddComponent(entity, new RenderInfo { Mesh = render.Mesh, Texture = render.Texture });
