@@ -160,7 +160,8 @@ gameLoop.Load += () =>
     }
 
     Console.WriteLine("Window loaded. Fixed tick rate: 60 Hz.");
-    Console.WriteLine("Hold right mouse button + WASD/space/ctrl: fly camera. Arrow keys: move the player cube (server-authoritative - expect a little lag). Esc: quit.");
+    Console.WriteLine("Hold right mouse button + WASD/ctrl: fly camera. Arrow keys: move the player cube. Space: jump. Esc: quit.");
+    Console.WriteLine("Note: Space also flies the dev camera up while right mouse is held - the overlap is harmless, just a debug-tool quirk.");
     Console.WriteLine("The scene is now entirely server-driven - this window just renders whatever it's sent.");
 };
 
@@ -179,9 +180,11 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (moveDirection.LengthSquared > 0f)
         moveDirection = Vector3D.Normalize(moveDirection);
 
+    bool jumpRequested = input.IsKeyDown(Key.Space);
+
     uint sequence = predictedMovement.RecordInput(moveDirection);
     var inputWriter = new NetDataWriter();
-    ClientInputMessage.Write(inputWriter, sequence, moveDirection);
+    ClientInputMessage.Write(inputWriter, sequence, moveDirection, jumpRequested);
     networkClient.Send(inputWriter, DeliveryMethod.Sequenced);
 
     // Predict instantly rather than waiting for the round trip: apply this

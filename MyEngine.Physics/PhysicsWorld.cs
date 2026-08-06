@@ -63,6 +63,23 @@ public sealed class PhysicsWorld : IDisposable
         }
     }
 
+    /// <summary>
+    /// One-shot upward velocity impulse - the only place that intentionally
+    /// overrides Y velocity (ApplyVelocities deliberately leaves Y alone so
+    /// it stays gravity's to own the rest of the time).
+    /// </summary>
+    public void ApplyJump(Entity entity, float jumpSpeed)
+    {
+        if (!_dynamicBodies.TryGetValue(entity, out var handle))
+            return;
+
+        var body = _simulation.Bodies.GetBodyReference(handle);
+        body.Awake = true;
+
+        var currentVelocity = body.Velocity.Linear;
+        body.Velocity.Linear = new Vector3(currentVelocity.X, jumpSpeed, currentVelocity.Z);
+    }
+
     /// <summary>Stops tracking an entity (e.g. a disconnected player) and removes its body/static from the simulation.</summary>
     public void RemoveEntity(Entity entity)
     {

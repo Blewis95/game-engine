@@ -24,8 +24,10 @@ Console.WriteLine($"Server started. Loaded {world.All().Count()} entities. Fixed
 uint nextNetworkId = (uint)world.All().Count();
 int playerSpawnIndex = 0;
 const float playerSpeed = 4f;
+const float jumpSpeed = 8f;
 var peerToEntity = new Dictionary<NetPeer, Entity>();
 var lastProcessedSequenceByPeer = new Dictionary<NetPeer, uint>();
+var jumpRequestedByPeer = new Dictionary<NetPeer, bool>();
 
 var networkInputSystem = new NetworkInputSystem();
 using var physicsWorld = new PhysicsWorld();
@@ -91,6 +93,7 @@ server.ClientDisconnected += peer =>
     world.DestroyEntity(entity);
     networkInputSystem.DirectionsByNetworkId.Remove(networkId);
     lastProcessedSequenceByPeer.Remove(peer);
+    jumpRequestedByPeer.Remove(peer);
 
     var writer = new NetDataWriter();
     EntityDespawnMessage.Write(writer, networkId);
@@ -102,8 +105,9 @@ server.MessageReceived += (peer, reader) =>
     if ((MessageType)reader.GetByte() != MessageType.ClientInput)
         return;
 
-    var (sequence, direction) = ClientInputMessage.Read(reader);
+    var (sequence, direction, jump) = ClientInputMessage.Read(reader);
     lastProcessedSequenceByPeer[peer] = sequence;
+    jumpRequestedByPeer[peer] = jump;
     if (peerToEntity.TryGetValue(peer, out var entity))
         networkInputSystem.DirectionsByNetworkId[world.GetComponent<NetworkId>(entity).Value] = direction;
 };
@@ -150,6 +154,18 @@ while (running)
         physicsWorld.SyncNewEntities(world);
         physicsWorld.SyncStaticPoses(world);
         physicsWorld.ApplyVelocities(world);
+
+        // Grounded reflects last tick's post-step raycast - gate here so
+        // holding Jump only lets you hop repeatedly, never fly.
+        foreach (var (peer, entity) in peerToEntity)
+        {
+            if (jumpRequestedByPeer.GetValueOrDefault(peer) &&
+                world.TryGetComponent<Grounded>(entity, out var grounded) && grounded.Value)
+            {
+                physicsWorld.ApplyJump(entity, jumpSpeed);
+            }
+        }
+
         physicsWorld.Step((float)fixedDeltaTime);
         physicsWorld.SyncTransformsToWorld(world);
         physicsWorld.UpdateGrounded(world);
