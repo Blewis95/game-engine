@@ -98,6 +98,30 @@ public sealed class PhysicsWorld : IDisposable
         }
     }
 
+    /// <summary>
+    /// Casts a short ray straight down from each dynamic body to determine
+    /// whether it's currently resting on something, writing the result into
+    /// a Grounded component (added if the entity doesn't have one yet).
+    /// </summary>
+    public void UpdateGrounded(World world)
+    {
+        const float rayDistance = 0.2f;
+
+        foreach (var (entity, handle) in _dynamicBodies)
+        {
+            if (!world.TryGetComponent<Collider>(entity, out var collider))
+                continue;
+
+            var body = _simulation.Bodies.GetBodyReference(handle);
+            var self = new CollidableReference(CollidableMobility.Dynamic, handle);
+            var hitHandler = new GroundRayHitHandler { Self = self };
+
+            _simulation.RayCast(body.Pose.Position, -Vector3.UnitY, collider.HalfExtents.Y + rayDistance, ref hitHandler);
+
+            world.AddComponent(entity, new Grounded { Value = hitHandler.Hit });
+        }
+    }
+
     /// <summary>Pushes each static entity's current Transform (e.g. SpinSystem's rotation) into its Bepu pose.</summary>
     public void SyncStaticPoses(World world)
     {

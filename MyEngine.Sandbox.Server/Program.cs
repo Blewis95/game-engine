@@ -152,6 +152,7 @@ while (running)
         physicsWorld.ApplyVelocities(world);
         physicsWorld.Step((float)fixedDeltaTime);
         physicsWorld.SyncTransformsToWorld(world);
+        physicsWorld.UpdateGrounded(world);
 
         tickCount++;
 
