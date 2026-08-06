@@ -5,6 +5,7 @@ using LiteNetLib.Utils;
 using MyEngine.Core;
 using MyEngine.ECS;
 using MyEngine.ECS.Components;
+using MyEngine.ECS.Systems;
 using MyEngine.Networking;
 using MyEngine.Rendering;
 using MyEngine.Sandbox;
@@ -33,9 +34,16 @@ bool cameraLookActive = false;
 
 var world = new World();
 var renderSystem = new RenderSystem();
+var movementSystem = new MovementSystem();
+var predictedMovement = new PredictedMovement();
 
 // Server owns simulation; this maps its NetworkId to our local (render-only) Entity.
 var networkIdToEntity = new Dictionary<uint, Entity>();
+
+// Set once YourPlayerMessage arrives. That one entity is the only one that
+// ever gets a Movement component client-side, so MovementSystem.Update stays
+// correctly scoped to just it.
+uint? localPlayerNetworkId = null;
 
 const float moveSpeed = 3f;
 const float mouseSensitivity = 0.1f;
@@ -84,13 +92,30 @@ gameLoop.Load += () =>
                 break;
 
             case MessageType.WorldSnapshot:
-                // LastProcessedInputSequence isn't consumed yet - that's Phase 3 (reconciliation).
-                var (_, snapshotEntities) = WorldSnapshotMessage.Read(reader);
+                var (lastProcessedInputSequence, snapshotEntities) = WorldSnapshotMessage.Read(reader);
                 foreach (var (networkId, transform) in snapshotEntities)
                 {
-                    if (networkIdToEntity.TryGetValue(networkId, out var entity))
+                    if (!networkIdToEntity.TryGetValue(networkId, out var entity))
+                        continue;
+
+                    if (localPlayerNetworkId.HasValue && networkId == localPlayerNetworkId.Value)
+                    {
+                        float speed = world.GetComponent<Movement>(entity).Speed;
+                        world.GetComponent<Transform>(entity) = predictedMovement.Reconcile(
+                            transform, speed, gameLoop.FixedDeltaTime, lastProcessedInputSequence);
+                    }
+                    else
+                    {
                         world.GetComponent<Transform>(entity) = transform;
+                    }
                 }
+                break;
+
+            case MessageType.YourPlayer:
+                var (myNetworkId, mySpeed) = YourPlayerMessage.Read(reader);
+                localPlayerNetworkId = myNetworkId;
+                if (networkIdToEntity.TryGetValue(myNetworkId, out var myEntity))
+                    world.AddComponent(myEntity, new Movement { Speed = mySpeed, Velocity = Vector3D<float>.Zero });
                 break;
 
             case MessageType.EntityDespawn:
@@ -154,10 +179,21 @@ gameLoop.FixedUpdate += fixedDeltaTime =>
     if (moveDirection.LengthSquared > 0f)
         moveDirection = Vector3D.Normalize(moveDirection);
 
-    // Sequence is a placeholder (always 0) until Phase 3 wires up PredictedMovement.
+    uint sequence = predictedMovement.RecordInput(moveDirection);
     var inputWriter = new NetDataWriter();
-    ClientInputMessage.Write(inputWriter, 0, moveDirection);
+    ClientInputMessage.Write(inputWriter, sequence, moveDirection);
     networkClient.Send(inputWriter, DeliveryMethod.Sequenced);
+
+    // Predict instantly rather than waiting for the round trip: apply this
+    // input locally right now, via the same MovementSystem the server runs,
+    // so the math can't drift. Scoped correctly since our own player is the
+    // only entity with a Movement component client-side.
+    if (localPlayerNetworkId.HasValue && networkIdToEntity.TryGetValue(localPlayerNetworkId.Value, out var localPlayerEntity))
+    {
+        ref var movement = ref world.GetComponent<Movement>(localPlayerEntity);
+        movement.Velocity = moveDirection * movement.Speed;
+        movementSystem.Update(world, fixedDeltaTime);
+    }
 
     if (cameraLookActive)
     {
